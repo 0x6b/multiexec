@@ -1,12 +1,15 @@
-use std::fs::File;
-use std::io::{BufReader, Read};
-use std::net::{SocketAddr, TcpStream};
-use std::str::FromStr;
-use std::time::Duration;
 use dirs::home_dir;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use ssh2::Session;
 use ssh2_config::{HostParams, SshConfig};
+use std::{
+    fs::File,
+    io::{BufReader, Read},
+    net::{SocketAddr, TcpStream},
+    str::FromStr,
+    time::Duration
+};
+
 static TICK_CHARS: &str = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
 
 #[tokio::main]
@@ -36,16 +39,30 @@ async fn main() {
 async fn exec(command: &str, node: &str, pb: ProgressBar) {
     let ssh_config_path: Option<String> = None;
     let ssh_config_path = match ssh_config_path {
-        None => home_dir().expect("Failed to determine home directory").join(".ssh").join("config"),
+        None => home_dir()
+            .expect("Failed to determine home directory")
+            .join(".ssh")
+            .join("config"),
         Some(p) => p.into(),
     };
-    let mut reader = BufReader::new(File::open(&ssh_config_path).expect("Could not open configuration file"));
-    let ssh_config = SshConfig::default().parse(&mut reader).unwrap_or_else(|_| panic!("Failed to parse configuration: {}", &ssh_config_path.display()));
-    let host_params = ssh_config
-        .query(node);
-        // .expect(&format!("No host found for {}", &addr));
+    let mut reader =
+        BufReader::new(File::open(&ssh_config_path).expect("Could not open configuration file"));
+    let ssh_config = SshConfig::default().parse(&mut reader).unwrap_or_else(|_| {
+        panic!(
+            "Failed to parse configuration: {}",
+            &ssh_config_path.display()
+        )
+    });
+    let host_params = ssh_config.query(node);
+    // .expect(&format!("No host found for {}", &addr));
 
-    let HostParams { host_name, port, user, identity_file, .. } = host_params;
+    let HostParams {
+        host_name,
+        port,
+        user,
+        identity_file,
+        ..
+    } = host_params;
 
     let host_name = host_name.as_ref().expect("hostname is required");
     let port = port.unwrap_or(22);
@@ -62,9 +79,14 @@ async fn exec(command: &str, node: &str, pb: ProgressBar) {
         let stream = TcpStream::connect_timeout(
             &SocketAddr::from_str(&format!("{}:{}", &host_name, &port)).unwrap(),
             Duration::from_secs(10),
-        ).unwrap();
-        stream.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
-        stream.set_write_timeout(Some(Duration::from_secs(10))).unwrap();
+        )
+        .unwrap();
+        stream
+            .set_read_timeout(Some(Duration::from_secs(10)))
+            .unwrap();
+        stream
+            .set_write_timeout(Some(Duration::from_secs(10)))
+            .unwrap();
 
         let mut sess = Session::new().unwrap();
         sess.set_tcp_stream(stream);
@@ -72,7 +94,8 @@ async fn exec(command: &str, node: &str, pb: ProgressBar) {
         sess.handshake().unwrap();
 
         // Authenticate with the remote server
-        sess.userauth_pubkey_file(&user, None, identity_file, None).unwrap();
+        sess.userauth_pubkey_file(&user, None, identity_file, None)
+            .unwrap();
         assert!(sess.authenticated());
 
         // Execute a command on the remote server
@@ -84,7 +107,11 @@ async fn exec(command: &str, node: &str, pb: ProgressBar) {
         // Read the output of the command
         let mut s = String::new();
         channel.read_to_string(&mut s).unwrap();
-        let result = s.lines().map(|line| format!("{now} - {}", line)).collect::<Vec<String>>().join("\n");
+        let result = s
+            .lines()
+            .map(|line| format!("{now} - {}", line))
+            .collect::<Vec<String>>()
+            .join("\n");
 
         pb.set_message(result);
         pb.inc(1);
@@ -92,6 +119,5 @@ async fn exec(command: &str, node: &str, pb: ProgressBar) {
         channel.send_eof().unwrap();
         channel.wait_close().unwrap();
         sess.disconnect(None, "disconnect", None).unwrap();
-
     }
 }
