@@ -1,23 +1,32 @@
-use dirs::home_dir;
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use ssh2::Session;
-use ssh2_config::{HostParams, SshConfig};
 use std::{
     fs::File,
     io::{BufReader, Read},
     net::{SocketAddr, TcpStream},
     str::FromStr,
-    time::Duration
+    time::Duration,
 };
+
+use dirs::home_dir;
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use ssh2::Session;
+use ssh2_config::{HostParams, SshConfig};
+use structopt::StructOpt;
 
 static TICK_CHARS: &str = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
 
+#[derive(Debug, StructOpt)]
+struct Args {
+    #[structopt()]
+    command: String,
+}
+
 #[tokio::main]
 async fn main() {
+    let args = Args::from_args();
+
     let mut tasks = Vec::new();
     let m = MultiProgress::new();
     let ip_addresses = ["node1", "node2", "node3", "node4"];
-    let command = "nodemon";
 
     ip_addresses.iter().for_each(|ip| {
         let pb = m.add(ProgressBar::new(1));
@@ -28,7 +37,7 @@ async fn main() {
         );
         pb.set_prefix(ip.to_string());
 
-        tasks.push(tokio::spawn(exec(command, ip, pb)));
+        tasks.push(tokio::spawn(exec(args.command.clone(), ip, pb)));
     });
 
     for task in tasks {
@@ -36,7 +45,7 @@ async fn main() {
     }
 }
 
-async fn exec(command: &str, node: &str, pb: ProgressBar) {
+async fn exec(command: String, node: &str, pb: ProgressBar) {
     let ssh_config_path: Option<String> = None;
     let ssh_config_path = match ssh_config_path {
         None => home_dir()
@@ -100,7 +109,7 @@ async fn exec(command: &str, node: &str, pb: ProgressBar) {
 
         // Execute a command on the remote server
         let mut channel = sess.channel_session().unwrap();
-        channel.exec(command).unwrap();
+        channel.exec(&command).unwrap();
 
         // get current date and time in RFC3399 format
         let now = chrono::Local::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
