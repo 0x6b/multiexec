@@ -1,3 +1,6 @@
+mod node;
+
+use std::error::Error;
 use std::{
     fs::File,
     io::{BufReader, Read},
@@ -6,6 +9,7 @@ use std::{
     time::Duration,
 };
 
+use crate::node::Node;
 use dirs::home_dir;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use ssh2::Session;
@@ -16,55 +20,51 @@ static TICK_CHARS: &str = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
 
 #[derive(Debug, StructOpt)]
 struct Args {
-    #[structopt()]
+    /// Command to execute.
     command: String,
+
+    /// Path to ssh config file. Defaults to "~/.ssh/config".
+    #[structopt(short, long)]
+    ssh_config_path: Option<String>,
+
+    /// Comma separated list of nodes to execute the command on. Node can be specified by "node1" or "1".
+    #[structopt(
+        short,
+        long,
+        value_delimiter = ",",
+        default_value = "1,2,3,4"
+    )]
+    nodes: Vec<Node>,
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::from_args();
+    let ssh_config = get_ssh_config(args.ssh_config_path)?;
 
     let mut tasks = Vec::new();
     let m = MultiProgress::new();
-    let ip_addresses = ["node1", "node2", "node3", "node4"];
 
-    ip_addresses.iter().for_each(|ip| {
+    args.nodes.into_iter().for_each(|node| {
         let pb = m.add(ProgressBar::new(1));
         pb.set_style(
             ProgressStyle::with_template("{spinner:.bold} {prefix:.blue}: {wide_msg}")
                 .unwrap()
                 .tick_chars(TICK_CHARS),
         );
-        pb.set_prefix(ip.to_string());
+        pb.set_prefix(node.to_string());
 
-        tasks.push(tokio::spawn(exec(args.command.clone(), ip, pb)));
+        tasks.push(tokio::spawn(exec(args.command.clone(), ssh_config.query(node), pb)));
     });
 
     for task in tasks {
         task.await.unwrap();
     }
+
+    Ok(())
 }
 
-async fn exec(command: String, node: &str, pb: ProgressBar) {
-    let ssh_config_path: Option<String> = None;
-    let ssh_config_path = match ssh_config_path {
-        None => home_dir()
-            .expect("Failed to determine home directory")
-            .join(".ssh")
-            .join("config"),
-        Some(p) => p.into(),
-    };
-    let mut reader =
-        BufReader::new(File::open(&ssh_config_path).expect("Could not open configuration file"));
-    let ssh_config = SshConfig::default().parse(&mut reader).unwrap_or_else(|_| {
-        panic!(
-            "Failed to parse configuration: {}",
-            &ssh_config_path.display()
-        )
-    });
-    let host_params = ssh_config.query(node);
-    // .expect(&format!("No host found for {}", &addr));
-
+async fn exec(command: String, host_params: HostParams, pb: ProgressBar) {
     let HostParams {
         host_name,
         port,
@@ -107,7 +107,7 @@ async fn exec(command: String, node: &str, pb: ProgressBar) {
             .unwrap();
         assert!(sess.authenticated());
 
-        // Execute a command on the remote server
+        // Execute a ≠command on the remote server
         let mut channel = sess.channel_session().unwrap();
         channel.exec(&command).unwrap();
 
@@ -129,4 +129,23 @@ async fn exec(command: String, node: &str, pb: ProgressBar) {
         channel.wait_close().unwrap();
         sess.disconnect(None, "disconnect", None).unwrap();
     }
+}
+
+fn get_ssh_config(ssh_config_path: Option<String>) -> Result<SshConfig, Box<dyn Error>> {
+    let ssh_config_path = match ssh_config_path {
+        None => home_dir()
+            .expect("Failed to determine home directory")
+            .join(".ssh")
+            .join("config"),
+        Some(p) => p.into(),
+    };
+    let mut reader = BufReader::new(File::open(&ssh_config_path)?);
+    let ssh_config = SshConfig::default().parse(&mut reader).unwrap_or_else(|_| {
+        panic!(
+            "Failed to parse configuration: {}",
+            &ssh_config_path.display()
+        )
+    });
+
+    Ok(ssh_config)
 }
