@@ -27,6 +27,10 @@ struct Args {
     #[structopt(short, long)]
     ssh_config_path: Option<String>,
 
+    /// Interval in seconds to execute the command. Defaults to 10.
+    #[structopt(short, long, default_value = "10")]
+    interval: u64,
+
     /// Comma separated list of nodes to execute the command on. Node can be specified by "node1" or "1".
     #[structopt(
         short,
@@ -54,7 +58,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         );
         pb.set_prefix(node.to_string());
 
-        tasks.push(tokio::spawn(exec(args.command.clone(), ssh_config.query(node), pb)));
+        tasks.push(tokio::spawn(exec(args.command.clone(), ssh_config.query(node), args.interval, pb)));
     });
 
     for task in tasks {
@@ -64,7 +68,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-async fn exec(command: String, host_params: HostParams, pb: ProgressBar) {
+async fn exec(command: String, host_params: HostParams, interval: u64, pb: ProgressBar) {
     let HostParams {
         host_name,
         port,
@@ -80,7 +84,7 @@ async fn exec(command: String, host_params: HostParams, pb: ProgressBar) {
     let identity_file = identity_file.as_ref().expect("identity_file is required");
     let identity_file = identity_file.first().expect("identity_file is required");
 
-    let mut interval = tokio::time::interval(Duration::from_millis(10000));
+    let mut interval = tokio::time::interval(Duration::from_millis(interval * 1000));
     for _ in 0.. {
         interval.tick().await;
 
