@@ -88,12 +88,24 @@ async fn exec(command: String, host_params: HostParams, interval: u64, pb: Progr
     for _ in 0.. {
         interval.tick().await;
 
+        // get current date and time in RFC3399 format
+        let now = chrono::Local::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+
         // Connect to the remote server
         let stream = TcpStream::connect_timeout(
             &SocketAddr::from_str(&format!("{}:{}", &host_name, &port)).unwrap(),
             Duration::from_secs(10),
-        )
-        .unwrap();
+        );
+
+        let stream = match stream {
+            Ok(s) => s,
+            Err(e) => {
+                pb.set_message(format!("{now} - Failed to connect: {}", e));
+                pb.inc(1);
+                continue;
+            }
+        };
+
         stream
             .set_read_timeout(Some(Duration::from_secs(10)))
             .unwrap();
@@ -115,8 +127,6 @@ async fn exec(command: String, host_params: HostParams, interval: u64, pb: Progr
         let mut channel = sess.channel_session().unwrap();
         channel.exec(&command).unwrap();
 
-        // get current date and time in RFC3399 format
-        let now = chrono::Local::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
         // Read the output of the command
         let mut s = String::new();
         channel.read_to_string(&mut s).unwrap();
