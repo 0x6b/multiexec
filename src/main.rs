@@ -116,32 +116,39 @@ async fn exec(command: String, host_params: HostParams, interval: u64, pb: Progr
         let mut sess = Session::new().unwrap();
         sess.set_tcp_stream(stream);
         sess.set_timeout(10 * 1000);
-        sess.handshake().unwrap();
 
-        // Authenticate with the remote server
-        sess.userauth_pubkey_file(&user, None, identity_file, None)
-            .unwrap();
-        assert!(sess.authenticated());
+        match sess.handshake() {
+            Ok(_) => {
+                // Authenticate with the remote server
+                sess.userauth_pubkey_file(&user, None, identity_file, None)
+                    .unwrap();
+                assert!(sess.authenticated());
 
-        // Execute a ≠command on the remote server
-        let mut channel = sess.channel_session().unwrap();
-        channel.exec(&command).unwrap();
+                // Execute a ≠command on the remote server
+                let mut channel = sess.channel_session().unwrap();
+                channel.exec(&command).unwrap();
 
-        // Read the output of the command
-        let mut s = String::new();
-        channel.read_to_string(&mut s).unwrap();
-        let result = s
-            .lines()
-            .map(|line| format!("{now} - {}", line))
-            .collect::<Vec<String>>()
-            .join("\n");
+                // Read the output of the command
+                let mut s = String::new();
+                channel.read_to_string(&mut s).unwrap();
+                let result = s
+                    .lines()
+                    .map(|line| format!("{now} - {}", line))
+                    .collect::<Vec<String>>()
+                    .join("\n");
 
-        pb.set_message(result);
-        pb.inc(1);
-        // Close the channel and the session
-        channel.send_eof().unwrap();
-        channel.wait_close().unwrap();
-        sess.disconnect(None, "disconnect", None).unwrap();
+                pb.set_message(result);
+                pb.inc(1);
+                // Close the channel and the session
+                channel.send_eof().unwrap();
+                channel.wait_close().unwrap();
+                sess.disconnect(None, "disconnect", None).unwrap();
+            }
+            Err(why) => {
+                pb.set_message(why.to_string());
+                pb.inc(1);
+            }
+        }
     }
 }
 
