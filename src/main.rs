@@ -14,10 +14,6 @@ use ssh2::Session;
 use ssh2_config::{HostParams, SshConfig};
 use structopt::StructOpt;
 
-use crate::node::Node;
-
-mod node;
-
 static TICK_CHARS: &str = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
 
 #[derive(Debug, StructOpt)]
@@ -33,9 +29,9 @@ struct Args {
     #[structopt(short, long, default_value = "10")]
     interval: u64,
 
-    /// Comma separated list of nodes to execute the command on. Node can be specified by "node1" or "1".
-    #[structopt(short, long, value_delimiter = ",", default_value = "1,2,3,4")]
-    nodes: Vec<Node>,
+    /// Comma separated list of nodes to execute the command on.
+    #[structopt(short, long, value_delimiter = ",", default_value = "node1,node2,node3,node4")]
+    nodes: Vec<String>,
 }
 
 #[tokio::main]
