@@ -12,31 +12,32 @@ use dirs::home_dir;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use ssh2::Session;
 use ssh2_config::{HostParams, SshConfig};
-use structopt::StructOpt;
+use clap::Parser;
 
 static TICK_CHARS: &str = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
+#[clap(about, version)]
 struct Args {
     /// Command to execute.
     command: String,
 
     /// Path to ssh config file. Defaults to "~/.ssh/config".
-    #[structopt(short, long)]
+    #[arg(short, long)]
     ssh_config_path: Option<String>,
 
     /// Interval in seconds to execute the command. Defaults to 10.
-    #[structopt(short, long, default_value = "10")]
+    #[arg(short, long, default_value = "10")]
     interval: u64,
 
     /// Comma separated list of nodes to execute the command on.
-    #[structopt(short, long, value_delimiter = ",", default_value = "node1,node2,node3,node4")]
+    #[arg(short, long, value_delimiter = ',', default_value = "node1,node2,node3,node4")]
     nodes: Vec<String>,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let args = Args::from_args();
+    let args = Args::parse();
     let ssh_config = get_ssh_config(args.ssh_config_path)?;
 
     let mut tasks = Vec::new();
