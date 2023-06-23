@@ -2,14 +2,15 @@
 name = "multiexec"
 version = "0.1.0"
 edition = "2021"
+description = "A tool to execute commands on multiple servers"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 chrono = "0.4.24"
+clap = { version = "4.3.5", features = ["derive"] }
 dirs = "5.0.0"
 indicatif = "0.17.3"
 ssh2 = "0.9.4"
 ssh2-config = "0.1.6"
-structopt = "0.3.26"
 tokio = { version = "1.28.0", default-features = false, features = ["rt", "rt-multi-thread", "macros", "time"] }
